@@ -21,7 +21,10 @@ namespace SqlTzLoader
         {
             var tzdb = await CurrentTzdbProvider.LoadAsync();
 
-            var zones = await WriteZonesAsync(tzdb.Ids);
+            //filter list of zones from tzdb.Ids
+            var filteredZones = tzdb.ids;
+            
+            var zones = await WriteZonesAsync(filteredZones);
 
             await WriteLinksAsync(zones, tzdb.Aliases);
 
