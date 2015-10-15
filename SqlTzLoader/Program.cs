@@ -22,7 +22,9 @@ namespace SqlTzLoader
             var tzdb = await CurrentTzdbProvider.LoadAsync();
 
             //filter list of zones from tzdb.Ids
-            var filteredZones = tzdb.ids;
+            List<string> zonesToKeep = new List<string>();
+            zonesToKeep.Add("Europe/London");
+            var filteredZones = tzdb.Ids.Where(x => zonesToKeep.Contains(x)).ToList();
             
             var zones = await WriteZonesAsync(filteredZones);
 
