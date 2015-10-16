@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Threading;
 using NodaTime;
+using System.Collections.ObjectModel;
 
 namespace SqlTzLoader
 {
@@ -25,12 +26,13 @@ namespace SqlTzLoader
             List<string> zonesToKeep = new List<string>();
             zonesToKeep.Add("Europe/London");
             var filteredZones = tzdb.Ids.Where(x => zonesToKeep.Contains(x)).ToList();
-            
-            var zones = await WriteZonesAsync(filteredZones);
+            ReadOnlyCollection<string> readOnlyZones = new ReadOnlyCollection<string>(filteredZones);
+
+            var zones = await WriteZonesAsync(readOnlyZones);
 
             await WriteLinksAsync(zones, tzdb.Aliases);
 
-            await WriteIntervalsAsync(zones, tzdb);
+            await WriteIntervalsAsync(zones, tzdb, readOnlyZones);
 
             await WriteVersion(tzdb.VersionId.Split(' ')[1]);
         }
@@ -73,20 +75,28 @@ namespace SqlTzLoader
 
                 foreach (var alias in aliases)
                 {
-                    var canonicalId = zones[alias.Key];
-                    foreach (var link in alias)
+                    try
                     {
-                        command.Parameters[0].Value = zones[link];
-                        command.Parameters[1].Value = canonicalId;
-                        await command.ExecuteNonQueryAsync();
+                        var canonicalId = zones[alias.Key];
+                        foreach (var link in alias)
+                        {
+                            command.Parameters[0].Value = zones[link];
+                            command.Parameters[1].Value = canonicalId;
+                            await command.ExecuteNonQueryAsync();
+                        }
                     }
+                    catch
+                    {
+
+                    }
+
                 }
 
                 connection.Close();
             }
         }
 
-        private static async Task WriteIntervalsAsync(IDictionary<string, int> zones, CurrentTzdbProvider tzdb)
+        private static async Task WriteIntervalsAsync(IDictionary<string, int> zones, CurrentTzdbProvider tzdb, IEnumerable<string> aliases)
         {
             var currentUtcYear = SystemClock.Instance.Now.InUtc().Year;
             var maxYear = currentUtcYear + 5;
@@ -94,7 +104,7 @@ namespace SqlTzLoader
 
             var links = tzdb.Aliases.SelectMany(x => x).OrderBy(x => x).ToList();
 
-            foreach (var id in tzdb.Ids)
+            foreach (var id in aliases)//tzdb.Ids
             {
                 // Skip noncanonical zones
                 if (links.Contains(id))
